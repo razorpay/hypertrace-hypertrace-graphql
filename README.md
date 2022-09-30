@@ -13,7 +13,7 @@ Hypertrace GraphQL service serves the GraphQL API which will be used by Hypertra
 ### Queries
 Here are some of the important GraphQL queries:
 
-
+test
 #### 1. Verify trace exists
 
 ```graphql
