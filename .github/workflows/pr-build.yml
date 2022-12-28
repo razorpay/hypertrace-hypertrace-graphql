@@ -1,6 +1,11 @@
 name: build and validate
 on:
   push:
+    branches:
+      - main
+  pull_request_target:
+    branches:
+      - main
 
 jobs:
   build:
@@ -13,6 +18,10 @@ jobs:
           ref: ${{github.event.pull_request.head.ref}}
           repository: ${{github.event.pull_request.head.repo.full_name}}
           fetch-depth: 0
+          submodules: recursive
+
+      - name: Ensure submodules point to commit from main branch
+        run: git submodule foreach --recursive "git merge-base --is-ancestor HEAD origin/main"
 
       - name: create checksum file
         uses: hypertrace/github-actions/checksum@main
@@ -29,24 +38,13 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@v1
         with:
-          username: ${{ secrets.PUBLIC_DOCKER_USERNAME }}
-          password: ${{ secrets.PUBLIC_DOCKER_PASSWORD }}
+          username: ${{ secrets.DOCKERHUB_READ_USER }}
+          password: ${{ secrets.DOCKERHUB_READ_TOKEN }}
 
       - name: Build with Gradle
         uses: hypertrace/github-actions/gradle@main
         with:
           args: build dockerBuildImages
-        env:
-          IMAGE_TAG: ${{ github.sha }}
-
-      - name: publish docker image
-        uses: hypertrace/github-actions/gradle@main
-        with:
-          args: dockerPushImages
-        env:
-          DOCKER_USERNAME: ${{ secrets.PUBLIC_DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.PUBLIC_DOCKER_PASSWORD }}
-          IMAGE_TAG: ${{ github.sha }}
 
   validate-helm-charts:
     runs-on: ubuntu-20.04
@@ -57,23 +55,27 @@ jobs:
           ref: ${{github.event.pull_request.head.ref}}
           repository: ${{github.event.pull_request.head.repo.full_name}}
           fetch-depth: 0
+          submodules: recursive
 
       - name: validate charts
         uses: hypertrace/github-actions/validate-charts@main
 
-#  snyk-scan:
-#    runs-on: ubuntu-20.04
-#    steps:
-#    # Set fetch-depth: 0 to fetch commit history and tags for use in version calculation
-#      - name: Check out code
-#        uses: actions/checkout@v2.3.4
-#        with:
-#          ref: ${{github.event.pull_request.head.ref}}
-#          repository: ${{github.event.pull_request.head.repo.full_name}}
-#          fetch-depth: 0
-#      - name: Setup snyk
-#        uses: snyk/actions/setup@0.3.0
-#      - name: Snyk test
-#        run: snyk test --all-sub-projects --org=hypertrace --severity-threshold=low --policy-path=.snyk --configuration-matching='^runtimeClasspath$'
-#        env:
-#          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+  snyk-scan:
+    runs-on: ubuntu-20.04
+    steps:
+      # Set fetch-depth: 0 to fetch commit history and tags for use in version calculation
+      - name: Check out code
+        uses: actions/checkout@v2.3.4
+        with:
+          ref: ${{github.event.pull_request.head.ref}}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup snyk
+        uses: snyk/actions/setup@0.3.0
+      - name: Snyk test
+        run: snyk test --all-sub-projects --org=hypertrace --severity-threshold=low --policy-path=.snyk --remote-repo-url='${{ github.server_url }}/${{ github.repository }}.git'
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          GRADLE_OPTS: -Dorg.gradle.workers.max=1 # Snyk doesn't handle parallelism
