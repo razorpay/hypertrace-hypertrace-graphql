@@ -1,20 +1,23 @@
-package org.hypertrace.graphql.impl;
+package org.hypertrace.core.graphql.service;
 
-import com.google.inject.Guice;
-import com.google.inject.Injector;
 import graphql.kickstart.servlet.GraphQLConfiguration;
-import graphql.schema.GraphQLSchema;
-import org.hypertrace.core.graphql.context.GraphQlRequestContextBuilder;
-import org.hypertrace.core.graphql.spi.lifecycle.GraphQlServiceLifecycle;
-import org.hypertrace.graphql.config.HypertraceGraphQlServiceConfig;
+import graphql.kickstart.servlet.GraphQLHttpServlet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class GraphQlFactory {
-  public static GraphQLConfiguration build(
-      HypertraceGraphQlServiceConfig config, GraphQlServiceLifecycle serviceLifecycle) {
-    final Injector injector = Guice.createInjector(new GraphQlModule(config, serviceLifecycle));
+class GraphQlServiceHttpServlet extends GraphQLHttpServlet {
 
-    return GraphQLConfiguration.with(injector.getInstance(GraphQLSchema.class))
-        .with(injector.getInstance(GraphQlRequestContextBuilder.class))
-        .build();
+  private static final Logger LOG = LoggerFactory.getLogger(GraphQlServiceHttpServlet.class);
+
+  private final GraphQLConfiguration configuration;
+
+  GraphQlServiceHttpServlet(GraphQLConfiguration configuration) {
+    LOG.info("Async timeout set in graphql config is: {}", configuration.getAsyncTimeout());
+    this.configuration = configuration;
+  }
+
+  @Override
+  protected GraphQLConfiguration getConfiguration() {
+    return configuration;
   }
 }
